@@ -1,10 +1,12 @@
 
 import { useEffect } from 'react';
 import { useAppContext } from '@/context/AppContext';
-import { Camera, ArrowUp, Image, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
+import { Camera, ArrowUp, Image, User as UserIcon, Settings as SettingsIcon, Moon, Sun } from 'lucide-react';
 
 const CameraPage = () => {
   const { activeCamera, setActiveCamera } = useAppContext();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     setActiveCamera(true);
@@ -30,6 +32,16 @@ const CameraPage = () => {
           <UserIcon size={20} className="text-white" />
         </button>
         <div className="flex space-x-4">
+          <button 
+            onClick={toggleTheme} 
+            className="bg-black/30 rounded-full p-2"
+          >
+            {theme === 'dark' ? (
+              <Sun size={20} className="text-white" />
+            ) : (
+              <Moon size={20} className="text-white" />
+            )}
+          </button>
           <button className="bg-black/30 rounded-full p-2">
             <SettingsIcon size={20} className="text-white" />
           </button>
