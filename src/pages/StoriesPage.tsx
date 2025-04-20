@@ -1,7 +1,7 @@
-
 import { useState } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { X, Plus, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const StoriesPage = () => {
   const { stories, friends, viewedStoryIds, toggleStoryViewed } = useAppContext();
@@ -71,7 +71,7 @@ const StoriesPage = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-background text-foreground">
       {activeStory ? (
         // Story Viewer
         <div className="fixed inset-0 bg-black z-50">
@@ -143,55 +143,57 @@ const StoriesPage = () => {
         </div>
       ) : (
         // Stories List
-        <div className="pt-8 pb-20">
-          <div className="px-4 mb-6">
-            <h1 className="text-2xl font-bold">Stories</h1>
-          </div>
-          
-          {/* My Story */}
-          <div className="px-4 mb-6">
-            <h2 className="text-lg font-medium mb-3">My Story</h2>
-            <div className="flex items-center">
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                <Plus size={24} className="text-gray-500" />
-              </div>
-              <div className="ml-3">
-                <p className="font-medium">Add to My Story</p>
-                <p className="text-sm text-gray-500">Share your day with friends</p>
-              </div>
+        <ScrollArea className="h-screen pb-20">
+          <div className="pt-8">
+            <div className="px-4 mb-6">
+              <h1 className="text-2xl font-bold">Stories</h1>
             </div>
-          </div>
-          
-          {/* Friends Stories */}
-          <div className="px-4">
-            <h2 className="text-lg font-medium mb-3">Friends</h2>
-            <div className="space-y-4">
-              {storyGroupsArray.map((group) => (
-                <div 
-                  key={group.friend.id} 
-                  className="flex items-center" 
-                  onClick={() => handleViewStory(group.friend.id)}
-                >
-                  <div className={`w-16 h-16 rounded-full overflow-hidden ring-2 ${
-                    group.stories.some(s => !isStoryViewed(s.id)) ? 'ring-snapchat-blue' : 'ring-gray-300'
-                  }`}>
-                    <img 
-                      src={group.friend.avatar} 
-                      alt={group.friend.displayName}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="ml-3">
-                    <p className="font-medium">{group.friend.displayName}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(group.stories[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
+            
+            {/* My Story */}
+            <div className="px-4 mb-6">
+              <h2 className="text-lg font-medium mb-3">My Story</h2>
+              <div className="flex items-center">
+                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
+                  <Plus size={24} className="text-gray-500" />
                 </div>
-              ))}
+                <div className="ml-3">
+                  <p className="font-medium">Add to My Story</p>
+                  <p className="text-sm text-gray-500">Share your day with friends</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Friends Stories */}
+            <div className="px-4">
+              <h2 className="text-lg font-medium mb-3">Friends</h2>
+              <div className="space-y-4">
+                {storyGroupsArray.map((group) => (
+                  <div 
+                    key={group.friend.id} 
+                    className="flex items-center" 
+                    onClick={() => handleViewStory(group.friend.id)}
+                  >
+                    <div className={`w-16 h-16 rounded-full overflow-hidden ring-2 ${
+                      group.stories.some(s => !isStoryViewed(s.id)) ? 'ring-snapchat-blue' : 'ring-gray-300'
+                    }`}>
+                      <img 
+                        src={group.friend.avatar} 
+                        alt={group.friend.displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium">{group.friend.displayName}</p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(group.stories[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        </ScrollArea>
       )}
     </div>
   );

@@ -1,12 +1,12 @@
-
 import { useAppContext } from '@/context/AppContext';
 import { Settings, Share, User as UserIcon, MapPin } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ProfilePage = () => {
   const { currentUser } = useAppContext();
   
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-background text-foreground pb-20">
       {/* Header */}
       <div className="bg-snapchat-yellow p-6 pt-8 pb-20 relative">
         <div className="flex justify-end">
@@ -19,39 +19,41 @@ const ProfilePage = () => {
         </div>
       </div>
       
-      {/* Profile Info */}
-      <div className="px-4 -mt-16 relative z-10">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex justify-center -mt-16">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white">
-              <img 
-                src={currentUser.avatar}
-                alt={currentUser.displayName}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-          
-          <div className="text-center mt-2">
-            <h1 className="text-xl font-bold">{currentUser.displayName}</h1>
-            <p className="text-gray-500 text-sm">{currentUser.username}</p>
-          </div>
-          
-          <div className="flex justify-center mt-4">
-            <div className="text-center mx-3">
-              <p className="text-lg font-bold">{currentUser.score.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Snap Score</p>
+      {/* Scrollable Content */}
+      <ScrollArea className="h-[calc(100vh-4rem)]">
+        <div className="px-4 -mt-16 relative z-10">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex justify-center -mt-16">
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white">
+                <img 
+                  src={currentUser.avatar}
+                  alt={currentUser.displayName}
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
             
-            <div className="h-10 border-r border-gray-200 mx-3"></div>
+            <div className="text-center mt-2">
+              <h1 className="text-xl font-bold">{currentUser.displayName}</h1>
+              <p className="text-gray-500 text-sm">{currentUser.username}</p>
+            </div>
             
-            <div className="text-center mx-3">
-              <p className="text-lg font-bold">{5}</p>
-              <p className="text-xs text-gray-500">Friends</p>
+            <div className="flex justify-center mt-4">
+              <div className="text-center mx-3">
+                <p className="text-lg font-bold">{currentUser.score.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">Snap Score</p>
+              </div>
+              
+              <div className="h-10 border-r border-gray-200 mx-3"></div>
+              
+              <div className="text-center mx-3">
+                <p className="text-lg font-bold">{5}</p>
+                <p className="text-xs text-gray-500">Friends</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </ScrollArea>
       
       {/* Bitmoji Section */}
       <div className="mt-4 p-4">

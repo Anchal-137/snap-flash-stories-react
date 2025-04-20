@@ -1,7 +1,7 @@
-
 import { useAppContext } from '@/context/AppContext';
 import { Search, User as UserIcon, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const FriendsPage = () => {
   const { friends } = useAppContext();
@@ -14,9 +14,9 @@ const FriendsPage = () => {
     : friends;
   
   return (
-    <div className="min-h-screen bg-white pb-20">
+    <div className="min-h-screen bg-background text-foreground pb-20">
       {/* Header */}
-      <div className="sticky top-0 bg-white z-10 p-4 shadow-sm">
+      <div className="sticky top-0 bg-background z-10 p-4 shadow-sm border-b border-border">
         <div className="flex justify-between items-center">
           <div className="w-8 h-8 rounded-full overflow-hidden">
             <UserIcon size={24} className="bg-gray-200 p-1 rounded-full" />
@@ -46,34 +46,36 @@ const FriendsPage = () => {
         </div>
       </div>
       
-      {/* Friend Categories */}
-      <div className="p-4">
-        <h2 className="font-medium mb-3">My Friends</h2>
-        <div className="space-y-4">
-          {filteredFriends.map(friend => (
-            <div key={friend.id} className="flex items-center">
-              <div className="w-12 h-12 rounded-full overflow-hidden">
-                <img 
-                  src={friend.avatar}
-                  alt={friend.displayName}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="ml-3">
-                <p className="font-medium">{friend.displayName}</p>
-                <p className="text-sm text-gray-500">{friend.username}</p>
-              </div>
-              {friend.streak && (
-                <div className="ml-auto">
-                  <span className="inline-flex items-center text-xs bg-red-500 text-white px-2 py-0.5 rounded">
-                    🔥 {friend.streak}
-                  </span>
+      {/* Friend Lists */}
+      <ScrollArea className="h-[calc(100vh-8rem)]">
+        <div className="p-4">
+          <h2 className="font-medium mb-3">My Friends</h2>
+          <div className="space-y-4">
+            {filteredFriends.map(friend => (
+              <div key={friend.id} className="flex items-center">
+                <div className="w-12 h-12 rounded-full overflow-hidden">
+                  <img 
+                    src={friend.avatar}
+                    alt={friend.displayName}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-              )}
-            </div>
-          ))}
+                <div className="ml-3">
+                  <p className="font-medium">{friend.displayName}</p>
+                  <p className="text-sm text-gray-500">{friend.username}</p>
+                </div>
+                {friend.streak && (
+                  <div className="ml-auto">
+                    <span className="inline-flex items-center text-xs bg-red-500 text-white px-2 py-0.5 rounded">
+                      🔥 {friend.streak}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </ScrollArea>
       
       {/* Quick Add Section */}
       <div className="p-4 mt-4">
