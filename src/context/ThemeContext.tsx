@@ -26,6 +26,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
     document.documentElement.className = newTheme;
+    
+    // Update background and text colors immediately
+    if (newTheme === 'dark') {
+      document.body.classList.add('bg-background', 'text-foreground');
+    } else {
+      document.body.classList.remove('bg-background', 'text-foreground');
+    }
   };
 
   return (
@@ -42,4 +49,3 @@ export const useTheme = () => {
   }
   return context;
 };
-
