@@ -21,6 +21,7 @@ const CameraPage = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showWeather, setShowWeather] = useState<boolean>(true); // Default to true
   
@@ -30,23 +31,48 @@ const CameraPage = () => {
   useEffect(() => {
     setActiveCamera(true);
     
-    // Start camera if available
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.onloadedmetadata = () => {
-              videoRef.current?.play();
-              setHasCamera(true);
-            };
-          }
-        })
-        .catch(err => {
-          console.error("Error accessing camera:", err);
-          setHasCamera(false);
+    const initCamera = async () => {
+      try {
+        setCameraError(null);
+        
+        // Check if the browser supports getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Your browser doesn't support camera access");
+        }
+        
+        // Try to get camera stream
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
         });
-    }
+        
+        // If we got here, we have camera access
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play()
+              .then(() => {
+                setHasCamera(true);
+                console.log("Camera initialized successfully");
+              })
+              .catch(err => {
+                console.error("Error playing video:", err);
+                setCameraError("Error starting camera stream");
+              });
+          };
+        }
+      } catch (err: any) {
+        console.error("Camera access error:", err);
+        setCameraError(err.message || "Error accessing camera");
+        setHasCamera(false);
+      }
+    };
+
+    // Initialize camera
+    initCamera();
 
     return () => {
       // Stop camera when unmounting
@@ -70,6 +96,18 @@ const CameraPage = () => {
     } else {
       setShowWeather(!showWeather);
     }
+  };
+
+  // Try to reinitialize camera after error
+  const retryCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    
+    // Force re-run of the useEffect
+    setHasCamera(false);
+    setCameraError(null);
   };
 
   // Capture photo from camera
@@ -135,10 +173,18 @@ const CameraPage = () => {
           )
         ) : (
           <div className={`w-full h-full ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-200'} flex items-center justify-center`}>
-            <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'} text-center`}>
+            <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'} text-center p-4`}>
               <Camera size={48} className="mx-auto mb-4" />
-              <p>Camera not available</p>
+              <p className="text-lg font-medium">{cameraError || "Camera not available"}</p>
               <p className="text-sm opacity-70 mt-2">Please allow camera access</p>
+              {cameraError && (
+                <button 
+                  onClick={retryCamera}
+                  className="mt-4 px-4 py-2 bg-snapchat-blue text-white rounded-full hover:bg-opacity-80"
+                >
+                  Retry Camera Access
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -221,7 +267,8 @@ const CameraPage = () => {
             {/* Capture Button */}
             <button 
               onClick={capturePhoto}
-              className={`${theme === 'dark' ? 'bg-white' : 'bg-white'} rounded-full w-16 h-16 flex items-center justify-center border-4 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}
+              disabled={!hasCamera}
+              className={`${theme === 'dark' ? 'bg-white' : 'bg-white'} rounded-full w-16 h-16 flex items-center justify-center border-4 ${!hasCamera ? 'opacity-50' : ''} ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}
             />
             
             {/* Send Button */}

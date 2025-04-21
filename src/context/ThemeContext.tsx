@@ -35,11 +35,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
-      document.documentElement.className = 'dark';
+      document.documentElement.setAttribute('data-theme', 'dark');
     } else {
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
-      document.documentElement.className = 'light';
+      document.documentElement.setAttribute('data-theme', 'light');
     }
   };
 
