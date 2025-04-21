@@ -1,5 +1,4 @@
-
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAppContext } from '@/context/AppContext';
 import { useTheme } from '@/context/ThemeContext';
 import { 
@@ -21,41 +20,44 @@ const CameraPage = () => {
   const { theme, toggleTheme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hasCamera, setHasCamera] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [showWeather, setShowWeather] = useState<boolean>(true); // Default to true
   const [streamReady, setStreamReady] = useState<boolean>(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [retryCounter, setRetryCounter] = useState(0); // State to trigger retries
   
   const { weatherData, isLoading, error, fetchWeather } = useWeather(true); // Auto fetch weather
 
-  // Initialize camera
+  // Function to stop the current media stream
+  const stopMediaStream = useCallback(() => {
+    if (mediaStream) {
+      console.log("Cleaning up camera - stopping all tracks");
+      mediaStream.getTracks().forEach(track => {
+        console.log(`Stopping track: ${track.kind}`);
+        track.stop();
+      });
+      setMediaStream(null);
+      setStreamReady(false); // Reset stream ready state
+      setActiveCamera(false); // Update context: camera is now inactive
+    }
+  }, [mediaStream, setActiveCamera]); // Add setActiveCamera dependency
+
+  // Effect 1: Get camera stream (runs on mount and retry)
   useEffect(() => {
-    console.log("CameraPage mounted, initializing camera...");
-    setActiveCamera(true);
-    
-    // Clean up function for stopping all tracks
-    const cleanupCamera = () => {
-      if (mediaStream) {
-        console.log("Cleaning up camera - stopping all tracks");
-        mediaStream.getTracks().forEach(track => {
-          console.log(`Stopping track: ${track.kind}`);
-          track.stop();
-        });
-      }
-    };
-    
-    // Wait for DOM to be ready before initializing camera
-    const initCamera = async () => {
+    console.log(`CameraPage Effect 1 running (retry: ${retryCounter})...`);
+    let isMounted = true;
+
+    const initCameraStream = async () => {
       try {
-        console.log("Starting camera initialization");
+        console.log("Requesting camera stream...");
         setCameraError(null);
+        setStreamReady(false); // Ensure stream is not ready until confirmed
         
-        // Clean up any existing stream first
-        cleanupCamera();
+        // Clean up any existing stream first (important for retries)
+        // No need to call stopMediaStream here, cleanup will handle it if needed
+        // or the component remounts for retry.
         
-        // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           console.error("Browser doesn't support getUserMedia");
           throw new Error("Your browser doesn't support camera access");
@@ -63,7 +65,6 @@ const CameraPage = () => {
         
         console.log("Browser supports getUserMedia, requesting camera access...");
         
-        // Try to get camera stream
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
             facingMode: 'environment',
@@ -72,76 +73,108 @@ const CameraPage = () => {
           } 
         });
         
-        console.log("Camera access granted:", stream);
-        console.log("Stream active:", stream.active);
-        console.log("Stream tracks:", stream.getTracks().map(t => `${t.kind}: ${t.label}, enabled: ${t.enabled}, readyState: ${t.readyState}`));
-        
-        // Save the stream for later cleanup
+        if (!isMounted) {
+          console.log("Component unmounted before stream acquired, stopping tracks.");
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        console.log("Camera access granted, setting media stream state:", stream);
         setMediaStream(stream);
-        
-        // Delay to ensure DOM is ready
-        setTimeout(() => {
-          // Check if video reference exists
-          if (!videoRef.current) {
-            console.error("Video element reference is null - DOM might not be ready yet");
-            throw new Error("Camera initialization failed: Video element not available");
-          }
-          
-          console.log("Video element ready:", videoRef.current);
-          
-          // Set the stream to the video element
-          videoRef.current.srcObject = stream;
-          videoRef.current.muted = true; // Mute to prevent feedback
-          
-          // Listen for video element to be ready to play
-          videoRef.current.onloadedmetadata = () => {
-            console.log("Video metadata loaded, playing video");
-            
-            if (videoRef.current) {
-              videoRef.current.play()
-                .then(() => {
-                  console.log("Video is now playing!");
-                  setHasCamera(true);
-                  setStreamReady(true);
-                })
-                .catch(err => {
-                  console.error("Error playing video:", err);
-                  setCameraError(`Error starting video: ${err.message}`);
-                });
-            }
-          };
-          
-          // Listen for errors on the video element
-          videoRef.current.onerror = (event) => {
-            console.error("Video element error:", event);
-            setCameraError(`Video element error: ${videoRef.current?.error?.message || 'Unknown error'}`);
-          };
-        }, 300); // Give the DOM extra time to ensure the video element is ready
+        setActiveCamera(true); // Update context: camera is now active
         
       } catch (err: any) {
+        if (!isMounted) return;
         console.error("Camera access error:", err);
         setCameraError(err.message || "Error accessing camera");
-        setHasCamera(false);
+        setMediaStream(null);
         setStreamReady(false);
+        setActiveCamera(false); // Update context: camera failed to activate
       }
     };
 
-    // Initialize with a delay to ensure DOM is ready
-    const timeoutId = setTimeout(() => {
-      console.log("Starting camera initialization with delay");
-      initCamera().catch(err => {
-        console.error("Failed to initialize camera with timeout:", err);
-      });
-    }, 500);
+    initCameraStream();
 
     return () => {
-      // Stop camera when unmounting
-      console.log("CameraPage unmounting, cleaning up...");
-      clearTimeout(timeoutId);
-      cleanupCamera();
-      setActiveCamera(false);
+      isMounted = false;
+      console.log("CameraPage Effect 1 cleanup: stopping media stream.");
+      // Cleanup just needs to stop the stream. stopMediaStream handles setActiveCamera(false).
+      stopMediaStream();
     };
-  }, [setActiveCamera]);
+    // Depend only on retryCounter to trigger re-runs. stopMediaStream is called from cleanup.
+  }, [retryCounter]); // Remove stopMediaStream from dependencies
+
+  // Effect 2: Attach stream to video element when both are ready
+  useEffect(() => {
+    // Only proceed if we have a stream AND the video element ref is current
+    if (mediaStream && videoRef.current) {
+      const videoElement = videoRef.current;
+      console.log("Effect 2: mediaStream and videoRef available. Attaching stream.");
+
+      // Check if the stream needs to be attached or is already attached
+      if (videoElement.srcObject !== mediaStream) {
+          videoElement.srcObject = mediaStream;
+          videoElement.muted = true; // Essential for preventing feedback
+          videoElement.playsInline = true; // Important for mobile browsers
+          setStreamReady(false); // Mark as not ready until metadata loads
+          console.log("Stream attached to video element. Waiting for metadata...");
+      }
+
+      const handleLoadedMetadata = () => {
+        console.log("Video metadata loaded. Ready state:", videoElement.readyState);
+        // Attempt to play the video only if metadata is loaded
+        if (videoElement.readyState >= HTMLMediaElement.HAVE_METADATA) {
+           videoElement.play()
+            .then(() => {
+              console.log("Video is now playing!");
+              setStreamReady(true); // Now the stream is truly ready
+              setCameraError(null); // Clear any previous errors like playback errors
+            })
+            .catch(err => {
+              console.error("Error playing video:", err);
+              setCameraError(`Error starting video playback: ${err.message}`);
+              setStreamReady(false);
+            });
+        }
+      };
+
+      const handleVideoError = (event: Event) => {
+        console.error("Video element error:", event, videoElement.error);
+        setCameraError(`Video playback error: ${videoElement.error?.message || 'Unknown error'}`);
+        setStreamReady(false);
+      };
+      
+      // Add event listeners
+      videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+      videoElement.addEventListener('error', handleVideoError);
+
+      // If metadata is already loaded (e.g., HMR or stream re-attachment), trigger handler
+       if (videoElement.readyState >= HTMLMediaElement.HAVE_METADATA) {
+         console.log("Metadata already loaded, attempting play directly.");
+         handleLoadedMetadata();
+       }
+
+      // Cleanup function for this effect
+      return () => {
+        console.log("Cleaning up video element listeners (Effect 2 cleanup).");
+        videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        videoElement.removeEventListener('error', handleVideoError);
+        
+        // Do NOT nullify srcObject here to prevent flicker on re-renders unless stream changes.
+        // It will be handled by stopMediaStream when the stream is truly stopped.
+
+        // Mark as not ready during cleanup/stream change
+        // Only set to false if the stream is actually changing or stopping
+        // If the component just re-renders, we don't want to reset this unnecessarily
+        // setStreamReady(false); 
+      };
+    } else {
+       // Log state if stream or video ref is missing when this effect runs
+       if (!mediaStream) console.log("Effect 2: Waiting for media stream...");
+       if (!videoRef.current) console.log("Effect 2: Waiting for video element ref...");
+    }
+    // This effect depends solely on the mediaStream changing
+  }, [mediaStream]); 
 
   // Toggle weather overlay
   const toggleWeather = async () => {
@@ -157,37 +190,23 @@ const CameraPage = () => {
     }
   };
 
-  // Try to reinitialize camera after error
-  const retryCamera = () => {
+  // Update retryCamera to increment the counter
+  const retryCamera = useCallback(() => {
     console.log("Retrying camera initialization...");
-    
-    // Clear existing state
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => {
-        console.log("Stopping track:", track);
-        track.stop();
-      });
-      setMediaStream(null);
-    }
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    
-    // Reset state to trigger re-render and re-run useEffect
-    setHasCamera(false);
-    setStreamReady(false);
-    setCameraError(null);
-  };
+    setCameraError(null); // Clear error display
+    setStreamReady(false); // Reset ready state
+    setRetryCounter(c => c + 1); // Increment counter to trigger Effect 1
+  }, []); // No dependencies needed now
 
   // Capture photo from camera
   const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current && hasCamera && streamReady) {
+    // Check streamReady state instead of hasCamera
+    if (videoRef.current && canvasRef.current && streamReady) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       
       console.log("Capturing photo from video:", 
-        `Video ready: ${video.readyState}, ` +
+        `Video readyState: ${video.readyState}, ` + // Use readyState for more detail
         `Size: ${video.videoWidth}x${video.videoHeight}, ` +
         `Playing: ${!video.paused}`);
       
@@ -226,8 +245,7 @@ const CameraPage = () => {
     } else {
       console.warn("Cannot capture photo. Video ready:", !!videoRef.current, 
         "Canvas ready:", !!canvasRef.current, 
-        "Has camera:", hasCamera, 
-        "Stream ready:", streamReady);
+        "Stream ready:", streamReady); // Check streamReady
     }
   };
 
@@ -240,156 +258,128 @@ const CameraPage = () => {
   // Log camera state for debugging
   useEffect(() => {
     console.log("Camera state:", { 
-      hasCamera, 
+      hasCamera: streamReady, // Derive from streamReady
       cameraError, 
       capturedImage,
       streamReady,
-      videoReady: videoRef.current ? "yes" : "no",
-      streamActive: mediaStream ? mediaStream.active : "no stream"
+      videoRefAvailable: !!videoRef.current, // Log ref status
+      mediaStreamActive: mediaStream ? mediaStream.active : "no stream"
     });
-  }, [hasCamera, cameraError, capturedImage, streamReady, mediaStream]);
+  }, [streamReady, cameraError, capturedImage, mediaStream]); // Update dependencies
 
   return (
-    <div className={`relative h-screen w-full overflow-hidden ${theme === 'dark' ? 'bg-black' : 'bg-gray-100'}`}>
-      {/* Camera View */}
-      <div className="absolute inset-0 flex items-center justify-center z-10">
-        {capturedImage ? (
-          <img 
-            src={capturedImage} 
-            alt="Captured" 
-            className="h-full w-full object-contain"
-          />
-        ) : (
-          hasCamera && streamReady ? (
-            <video 
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`h-full w-full ${theme === 'dark' ? '' : ''} object-cover`}
-            />
-          ) : (
-            <div className={`w-full h-full ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-200'} flex items-center justify-center`}>
-              <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'} text-center p-4`}>
-                <CameraOff size={48} className="mx-auto mb-4" />
-                <p className="text-lg font-medium">{cameraError || "Camera not available"}</p>
-                <p className="text-sm opacity-70 mt-2">Please allow camera access</p>
-                <p className="text-xs opacity-70 mt-2">Stream state: {mediaStream ? (mediaStream.active ? 'Active' : 'Inactive') : 'No stream'}</p>
-                <button 
-                  onClick={retryCamera}
-                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-opacity-80"
-                >
-                  Retry Camera Access
-                </button>
-              </div>
-            </div>
-          )
-        )}
-        <canvas ref={canvasRef} className="hidden" />
-      </div>
-
-      {/* Weather Overlay */}
-      {showWeather && weatherData && !capturedImage && (
-        <div className="absolute top-20 left-0 right-0 z-20">
-          <Weather weatherData={weatherData} overlay={true} />
-        </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="absolute top-20 left-0 right-0 bg-red-600/90 text-white p-4 z-50 text-center">
-          {error}
-        </div>
-      )}
-
-      {/* Top Controls */}
-      <div className={`absolute top-0 left-0 right-0 flex justify-between items-center p-4 z-30 ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-100/50'}`}>
-        <button className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}>
-          <UserIcon size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
+    <div className={`flex flex-col h-dvh overflow-hidden pb-20 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+      {/* Header */}
+      <div className="flex-none flex items-center justify-between p-4 bg-opacity-75 backdrop-blur-sm">
+        <button className="p-2 rounded-full bg-gray-600 text-gray-300">
+          <UserIcon size={24} />
         </button>
         <div className="flex space-x-4">
           <button 
-            onClick={toggleWeather} 
-            className={`${showWeather ? (theme === 'dark' ? 'bg-white/30' : 'bg-gray-800/30') : (theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70')} rounded-full p-2`}
-          >
-            <CloudSun size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
-          </button>
-          <button 
             onClick={toggleTheme} 
-            className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}
+            className="p-2 rounded-full bg-gray-600 text-gray-300"
           >
             {theme === 'dark' ? (
-              <Sun size={20} className="text-white" />
+              <Sun size={24} />
             ) : (
-              <Moon size={20} className="text-gray-800" />
+              <Moon size={24} />
             )}
           </button>
-          <button className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}>
-            <Settings size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
+          <button className="p-2 rounded-full bg-gray-600 text-gray-300">
+            <Settings size={24} />
           </button>
         </div>
       </div>
 
-      {/* Bottom Controls */}
-      <div className="absolute bottom-20 left-0 right-0 flex justify-center items-center gap-8 z-30">
+      {/* Camera Feed or Captured Image */}
+      <div className="relative flex-grow flex items-center justify-center bg-black min-h-0">
         {capturedImage ? (
-          <>
-            {/* Discard Button */}
+          <div className="relative w-full h-full flex flex-col items-center justify-center">
+            <img src={capturedImage} alt="Captured" className="max-w-full max-h-full object-contain" />
+            {/* Add overlay buttons for captured image */}
+            <div className="absolute bottom-5 left-5 right-5 flex justify-around p-4 bg-black bg-opacity-50 rounded-lg">
+               <button onClick={discardPhoto} className="p-3 bg-red-500 rounded-full text-white">Discard</button>
+               <button onClick={() => alert('Save functionality not implemented yet')} className="p-3 bg-blue-500 rounded-full text-white">Save</button>
+            </div>
+          </div>
+        ) : cameraError ? (
+          <div className="flex flex-col items-center justify-center text-center text-red-500 p-4">
+            <CameraOff size={48} className="mb-2" />
+            <p className="font-semibold">Camera Error:</p>
+            <p>{cameraError}</p>
             <button 
-              onClick={discardPhoto}
-              className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}
+              onClick={retryCamera} 
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} transform="rotate(180)" />
+              Retry Camera
             </button>
-            
-            {/* Send Button */}
-            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
-              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
-            </button>
-          </>
-        ) : (
-          <>
-            {/* Gallery Button */}
-            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
-              <Image size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
-            </button>
-            
-            {/* Capture Button */}
-            <button 
-              onClick={capturePhoto}
-              disabled={!hasCamera || !streamReady}
-              className={`${theme === 'dark' ? 'bg-white' : 'bg-white'} rounded-full w-16 h-16 flex items-center justify-center border-4 ${!hasCamera || !streamReady ? 'opacity-50' : ''} ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}
-            />
-            
-            {/* Send Button */}
-            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
-              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
-            </button>
-          </>
+          </div>
+        ) : !mediaStream ? ( // Show initializing state before stream is obtained
+          <div className="flex flex-col items-center justify-center text-gray-500">
+            <p>Initializing Camera...</p> 
+            {/* Optional: Add a spinner here */}
+          </div>
+         ) : !streamReady ? ( // Show waiting state after stream obtained but before video plays
+           <div className="flex flex-col items-center justify-center text-gray-500">
+             <p>Waiting for video stream...</p> 
+             {/* Optional: Add a spinner here */}
+           </div>
+        ) : null /* Video element rendered below when stream is ready */}
+
+        {/* Video element: Always render it, hide based on state */}
+        {/* Use streamReady to control visibility/activity */}
+        <video 
+          ref={videoRef} 
+          className={`w-full h-full object-cover ${capturedImage || cameraError || !streamReady ? 'hidden' : ''}`} 
+          playsInline // Ensure playsInline is set
+          // autoPlay // Let the useEffect handle play()
+          muted // Ensure muted
+        />
+        
+        {/* Hidden canvas for capturing photos */}
+        <canvas ref={canvasRef} className="hidden"></canvas>
+
+        {/* Weather Overlay: Show only when stream is ready and no image captured */}
+        {showWeather && weatherData && !capturedImage && streamReady && (
+          <div className="absolute top-0 left-0 p-2 bg-black bg-opacity-50 rounded-br-lg">
+             <Weather weatherData={weatherData} overlay={true} />
+           </div>
         )}
       </div>
 
-      {/* Filters Carousel */}
-      {!capturedImage && (
-        <div className="absolute bottom-36 left-0 right-0 flex justify-center z-30">
-          <div className="flex space-x-3 px-4 py-2 overflow-x-auto scrollbar-hide">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-16 w-16 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'} border-2 
-                  ${i === 0 ? 'border-white' : 'border-transparent'}`}
-              />
-            ))}
-          </div>
+      {/* Footer Controls */}
+      <div className="flex-none flex items-center justify-around p-4 bg-opacity-75 backdrop-blur-sm">
+        {/* Left placeholder */}
+        <div className="w-12 h-12"> {/* Placeholder for balance */}
+          {/* Show weather toggle only if weather data is available or loading */}
+          {(weatherData || isLoading) && (
+            <button 
+              onClick={toggleWeather} 
+              className={`p-2 rounded-full ${showWeather ? 'bg-blue-500 text-white' : 'bg-gray-600 text-gray-300'}`}
+              aria-label={showWeather ? "Hide Weather" : "Show Weather"}
+            >
+              <CloudSun size={24} />
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Capture Button: Disable based on streamReady */}
+        <button 
+          onClick={capturePhoto} 
+          disabled={!streamReady || !!capturedImage || !!cameraError} 
+          className={`w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-opacity duration-300 ${
+            (!streamReady || !!capturedImage || !!cameraError) ? 'opacity-50 cursor-not-allowed bg-gray-700' : 'bg-red-500 hover:bg-red-600'
+          }`}
+          aria-label="Capture Photo"
+        >
+          <Camera size={32} className="text-white" />
+        </button>
+
+        {/* Right placeholder */}
+        <div className="w-12 h-12"> {/* Placeholder for balance */}
+          {/* Example: Add a button to flip camera later */}
+        </div>
+      </div>
     </div>
   );
 };
