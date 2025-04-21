@@ -60,9 +60,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.remove('light');
       document.documentElement.setAttribute('data-theme', 'dark');
       
-      // Apply dark mode styles to body as well
+      // Apply dark mode styles to body
       document.body.style.backgroundColor = '#000';
       document.body.style.color = '#fff';
+      
+      // Apply dark mode specifically to camera page content
+      const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        video.classList.add('dark-mode-video');
+      });
+      
     } else {
       document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
@@ -71,6 +78,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // Apply light mode styles to body
       document.body.style.backgroundColor = '#fff';
       document.body.style.color = '#000';
+      
+      // Remove dark mode from camera page elements
+      const videoElements = document.querySelectorAll('video');
+      videoElements.forEach(video => {
+        video.classList.remove('dark-mode-video');
+      });
     }
   };
 
