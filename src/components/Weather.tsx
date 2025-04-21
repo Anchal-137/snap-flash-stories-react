@@ -40,7 +40,7 @@ const Weather = ({ weatherData, overlay = false }: WeatherProps) => {
   
   if (overlay) {
     return (
-      <div className="bg-black/50 backdrop-blur-sm text-white p-4">
+      <div className={`${theme === 'dark' ? 'bg-black/60' : 'bg-black/50'} backdrop-blur-sm text-white p-4`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             {getWeatherIcon()}

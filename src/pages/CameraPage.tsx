@@ -22,9 +22,9 @@ const CameraPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [showWeather, setShowWeather] = useState<boolean>(false);
+  const [showWeather, setShowWeather] = useState<boolean>(true); // Default to true
   
-  const { weatherData, isLoading, error, fetchWeather } = useWeather();
+  const { weatherData, isLoading, error, fetchWeather } = useWeather(true); // Auto fetch weather
 
   // Initialize camera
   useEffect(() => {
@@ -32,11 +32,14 @@ const CameraPage = () => {
     
     // Start camera if available
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: true })
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(stream => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            setHasCamera(true);
+            videoRef.current.onloadedmetadata = () => {
+              videoRef.current?.play();
+              setHasCamera(true);
+            };
           }
         })
         .catch(err => {
@@ -111,7 +114,7 @@ const CameraPage = () => {
   };
 
   return (
-    <div className="relative h-screen w-full bg-black overflow-hidden">
+    <div className={`relative h-screen w-full overflow-hidden ${theme === 'dark' ? 'bg-black' : 'bg-gray-100'}`}>
       {/* Camera View */}
       <div className="absolute inset-0 flex items-center justify-center z-10">
         {hasCamera ? (
@@ -131,8 +134,8 @@ const CameraPage = () => {
             />
           )
         ) : (
-          <div className="w-full h-full bg-gray-900 flex items-center justify-center">
-            <div className="text-white text-center">
+          <div className={`w-full h-full ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-200'} flex items-center justify-center`}>
+            <div className={`${theme === 'dark' ? 'text-white' : 'text-gray-800'} text-center`}>
               <Camera size={48} className="mx-auto mb-4" />
               <p>Camera not available</p>
               <p className="text-sm opacity-70 mt-2">Please allow camera access</p>
@@ -164,29 +167,29 @@ const CameraPage = () => {
       )}
 
       {/* Top Controls */}
-      <div className="absolute top-0 left-0 right-0 flex justify-between items-center p-4 z-30">
-        <button className="bg-black/30 rounded-full p-2">
-          <UserIcon size={20} className="text-white" />
+      <div className={`absolute top-0 left-0 right-0 flex justify-between items-center p-4 z-30 ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-100/50'}`}>
+        <button className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}>
+          <UserIcon size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
         </button>
         <div className="flex space-x-4">
           <button 
             onClick={toggleWeather} 
-            className={`${showWeather ? 'bg-white/30' : 'bg-black/30'} rounded-full p-2`}
+            className={`${showWeather ? (theme === 'dark' ? 'bg-white/30' : 'bg-gray-800/30') : (theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70')} rounded-full p-2`}
           >
-            <CloudSun size={20} className="text-white" />
+            <CloudSun size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
           </button>
           <button 
             onClick={toggleTheme} 
-            className="bg-black/30 rounded-full p-2"
+            className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}
           >
             {theme === 'dark' ? (
               <Sun size={20} className="text-white" />
             ) : (
-              <Moon size={20} className="text-white" />
+              <Moon size={20} className="text-gray-800" />
             )}
           </button>
-          <button className="bg-black/30 rounded-full p-2">
-            <Settings size={20} className="text-white" />
+          <button className={`${theme === 'dark' ? 'bg-gray-800/70' : 'bg-white/70'} rounded-full p-2`}>
+            <Settings size={20} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
           </button>
         </div>
       </div>
@@ -198,32 +201,32 @@ const CameraPage = () => {
             {/* Discard Button */}
             <button 
               onClick={discardPhoto}
-              className="bg-white/20 rounded-full p-3"
+              className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}
             >
-              <ArrowUp size={24} className="text-white transform rotate-180" />
+              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} transform="rotate(180)" />
             </button>
             
             {/* Send Button */}
-            <button className="bg-white/20 rounded-full p-3">
-              <ArrowUp size={24} className="text-white" />
+            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
+              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
             </button>
           </>
         ) : (
           <>
             {/* Gallery Button */}
-            <button className="bg-white/20 rounded-full p-3">
-              <Image size={24} className="text-white" />
+            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
+              <Image size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
             </button>
             
             {/* Capture Button */}
             <button 
               onClick={capturePhoto}
-              className="bg-white rounded-full w-16 h-16 flex items-center justify-center border-4 border-gray-200"
+              className={`${theme === 'dark' ? 'bg-white' : 'bg-white'} rounded-full w-16 h-16 flex items-center justify-center border-4 ${theme === 'dark' ? 'border-gray-600' : 'border-gray-200'}`}
             />
             
             {/* Send Button */}
-            <button className="bg-white/20 rounded-full p-3">
-              <ArrowUp size={24} className="text-white" />
+            <button className={`${theme === 'dark' ? 'bg-white/20' : 'bg-black/20'} rounded-full p-3`}>
+              <ArrowUp size={24} className={theme === 'dark' ? 'text-white' : 'text-gray-800'} />
             </button>
           </>
         )}
@@ -236,7 +239,7 @@ const CameraPage = () => {
             {Array.from({ length: 5 }).map((_, i) => (
               <div 
                 key={i} 
-                className={`h-16 w-16 rounded-full bg-gray-600 border-2 
+                className={`h-16 w-16 rounded-full ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'} border-2 
                   ${i === 0 ? 'border-white' : 'border-transparent'}`}
               />
             ))}

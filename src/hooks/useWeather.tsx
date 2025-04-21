@@ -104,7 +104,7 @@ export const useWeather = (autoFetch = false): UseWeatherReturn => {
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 5000,
+          timeout: 10000, // Increased timeout
           maximumAge: 0
         });
       });
@@ -112,8 +112,14 @@ export const useWeather = (autoFetch = false): UseWeatherReturn => {
       const { latitude, longitude } = position.coords;
       return fetchWeatherByCoords(latitude, longitude);
     } catch (err: any) {
-      setError(err.message || 'Failed to get location');
-      throw err;
+      // If geolocation fails, try with a default location
+      console.warn('Geolocation failed, using default location:', err);
+      try {
+        return await fetchWeatherByQuery('New York');
+      } catch (defaultErr) {
+        setError(err.message || 'Failed to get location');
+        throw err;
+      }
     }
   };
 
