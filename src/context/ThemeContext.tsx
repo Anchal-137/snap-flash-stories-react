@@ -14,10 +14,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
+    // Get stored theme from localStorage or use system preference
     const storedTheme = localStorage.getItem("theme") as Theme;
     if (storedTheme) {
       setTheme(storedTheme);
       document.documentElement.className = storedTheme;
+    } else {
+      // Check system preference
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const initialTheme = systemPrefersDark ? 'dark' : 'light';
+      setTheme(initialTheme);
+      document.documentElement.className = initialTheme;
+      localStorage.setItem("theme", initialTheme);
     }
   }, []);
 
@@ -26,13 +34,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme(newTheme);
     localStorage.setItem("theme", newTheme);
     document.documentElement.className = newTheme;
-    
-    // Update background and text colors immediately
-    if (newTheme === 'dark') {
-      document.body.classList.add('bg-background', 'text-foreground');
-    } else {
-      document.body.classList.remove('bg-background', 'text-foreground');
-    }
   };
 
   return (
@@ -40,7 +41,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-};
+}
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
