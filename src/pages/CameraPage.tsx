@@ -29,16 +29,21 @@ const CameraPage = () => {
 
   // Initialize camera
   useEffect(() => {
+    console.log("CameraPage mounted, initializing camera...");
     setActiveCamera(true);
     
     const initCamera = async () => {
       try {
+        console.log("Starting camera initialization");
         setCameraError(null);
         
         // Check if the browser supports getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error("Browser doesn't support getUserMedia");
           throw new Error("Your browser doesn't support camera access");
         }
+        
+        console.log("Browser supports getUserMedia, requesting camera access...");
         
         // Try to get camera stream
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -49,20 +54,36 @@ const CameraPage = () => {
           } 
         });
         
+        console.log("Camera access granted:", stream);
+        console.log("Stream tracks:", stream.getTracks());
+        
         // If we got here, we have camera access
         if (videoRef.current) {
+          console.log("Setting video source and playing...");
           videoRef.current.srcObject = stream;
+          
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play()
-              .then(() => {
-                setHasCamera(true);
-                console.log("Camera initialized successfully");
-              })
-              .catch(err => {
-                console.error("Error playing video:", err);
-                setCameraError("Error starting camera stream");
-              });
+            console.log("Video metadata loaded, attempting to play");
+            
+            if (videoRef.current) {
+              videoRef.current.play()
+                .then(() => {
+                  console.log("Camera initialized successfully and playing");
+                  setHasCamera(true);
+                })
+                .catch(err => {
+                  console.error("Error playing video:", err);
+                  setCameraError("Error starting camera stream: " + err.message);
+                });
+            }
           };
+          
+          videoRef.current.onerror = (event) => {
+            console.error("Video element error:", event);
+          };
+        } else {
+          console.error("Video ref is null");
+          setCameraError("Camera initialization failed: Video element not available");
         }
       } catch (err: any) {
         console.error("Camera access error:", err);
@@ -71,13 +92,19 @@ const CameraPage = () => {
       }
     };
 
-    // Initialize camera
-    initCamera();
+    // Initialize camera with a slight delay to ensure DOM is ready
+    setTimeout(() => {
+      initCamera().catch(err => {
+        console.error("Failed to initialize camera with timeout:", err);
+      });
+    }, 500);
 
     return () => {
       // Stop camera when unmounting
+      console.log("CameraPage unmounting, stopping camera...");
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        console.log("Stopping tracks:", tracks);
         tracks.forEach(track => track.stop());
       }
       setActiveCamera(false);
@@ -100,9 +127,13 @@ const CameraPage = () => {
 
   // Try to reinitialize camera after error
   const retryCamera = () => {
+    console.log("Retrying camera initialization...");
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
+      tracks.forEach(track => {
+        console.log("Stopping track:", track);
+        track.stop();
+      });
     }
     
     // Force re-run of the useEffect
@@ -151,6 +182,9 @@ const CameraPage = () => {
     setCapturedImage(null);
   };
 
+  // Log camera state for debugging
+  console.log("Camera state:", { hasCamera, cameraError, capturedImage });
+
   return (
     <div className={`relative h-screen w-full overflow-hidden ${theme === 'dark' ? 'bg-black' : 'bg-gray-100'}`}>
       {/* Camera View */}
@@ -177,14 +211,13 @@ const CameraPage = () => {
               <Camera size={48} className="mx-auto mb-4" />
               <p className="text-lg font-medium">{cameraError || "Camera not available"}</p>
               <p className="text-sm opacity-70 mt-2">Please allow camera access</p>
-              {cameraError && (
-                <button 
-                  onClick={retryCamera}
-                  className="mt-4 px-4 py-2 bg-snapchat-blue text-white rounded-full hover:bg-opacity-80"
-                >
-                  Retry Camera Access
-                </button>
-              )}
+              <p className="text-xs opacity-70 mt-2">Browser indicates camera is: {document.visibilityState === 'visible' ? 'visible' : 'hidden'}</p>
+              <button 
+                onClick={retryCamera}
+                className="mt-4 px-4 py-2 bg-snapchat-blue text-white rounded-full hover:bg-opacity-80"
+              >
+                Retry Camera Access
+              </button>
             </div>
           </div>
         )}
